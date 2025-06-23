@@ -83,34 +83,44 @@ measure_units = {
     "wind_speed_10m_max": "m/s",
 }
 
+
+def iter_cuartil(df_hemisphere, var):
+    """Función para calcular el rango intercuartil (IQR)
+    y detectar anomalías
+
+    Args:
+        df_hemisphere (pd.DataFrame): DataFrame con los datos meteorológicos.
+        var (str): Nombre de la variable a analizar.
+    Returns:
+        pd.DataFrame: DataFrame con las anomalías detectadas.
+    """
+    # Calcular cuartiles
+    q1 = df_hemisphere[var].quantile(0.25)
+    q3 = df_hemisphere[var].quantile(0.75)
+    iqr = q3 - q1
+
+    # Definir límites para detectar anomalías
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    # Detectar anomalías
+    anomalies = df_hemisphere[
+        (df_hemisphere[var] < lower_bound) | (df_hemisphere[var] > upper_bound)
+    ]
+    anomalies = anomalies.copy()
+    anomalies["variable"] = var
+    anomalies["measure_unit"] = measure_units.get(var, "unknown")
+
+    return anomalies
+
+
 anomaly_records = []
 
 for var in variables:
-    # Calcular deciles (10% y 90%)
-    deciles_df = (
-        df_hemisphere.groupby(["city_name", "season"])[var]
-        .quantile([0.1, 0.9])
-        .unstack()
-        .reset_index()
-    )
-    deciles_df.columns = ["city_name", "season", "D1", "D9"]
-
-    # Unir deciles a los datos originales
-    merged = df_hemisphere[["city_name", "season", "year", var]].merge(
-        deciles_df, on=["city_name", "season"], how="left"
-    )
-
-    # Detectar anomalías
-    anomalías_bajas = merged[merged[var] <= merged["D1"]].copy()
-    anomalías_bajas["type"] = "low"
-
-    anomalías_altas = merged[merged[var] >= merged["D9"]].copy()
-    anomalías_altas["type"] = "high"
-
-    anomalías = pd.concat([anomalías_bajas, anomalías_altas])
-    anomalías["variable"] = var
-
-    anomaly_records.append(anomalías)
+    # Iterar sobre cada variable y detectar anomalías
+    anomalies = iter_cuartil(df_hemisphere, var)
+    if not anomalies.empty:
+        anomaly_records.append(anomalies)
 
 # Concatenar todas las anomalías
 anomaly_df = pd.concat(anomaly_records, ignore_index=True)
