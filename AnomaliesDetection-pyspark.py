@@ -44,8 +44,15 @@ args = parser.parse_args()
 # ────────────────────────────────────────────────
 # 1. SparkSession
 # ────────────────────────────────────────────────
-spark = SparkSession.builder.appName("DeteccionAnomaliasClimaticas").getOrCreate()
-
+spark = (
+    SparkSession.builder.appName("App")
+    .config(
+        "spark.sql.parquet.int96RebaseModeInRead", "CORRECTED"
+    )  # Forzar a que lea el timestamp como TIMESTAMP_MICROS
+    .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+    .config("spark.sql.parquet.enableVectorizedReader", "false")
+    .getOrCreate()
+)
 # ────────────────────────────────────────────────
 # 2. Carga de datos
 # ────────────────────────────────────────────────
